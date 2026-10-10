@@ -432,9 +432,39 @@
     items.forEach(item => processItem(item));
   });
 
+  // --- Descarga en la app Android (WebView no soporta <a download> con blobs) ---
+  function isNative() {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1]);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function shareNative(list) {
+    const { Filesystem, Share } = window.Capacitor.Plugins;
+    const uris = [];
+    for (const it of list) {
+      const data = await blobToBase64(it.resultBlob);
+      const safeName = it.outName.replace(/[^\w.\-]+/g, '_');
+      const w = await Filesystem.writeFile({ path: safeName, data, directory: 'CACHE' });
+      uris.push(w.uri);
+    }
+    await Share.share({ title: 'Sin Fondo', files: uris });
+  }
+
   downloadAllBtn.addEventListener('click', async () => {
     const done = items.filter(i => i.resultBlob);
     if (!done.length) return;
+    if (isNative()) {
+      try { await shareNative(done); } catch (err) { console.warn(err); }
+      return;
+    }
     const zip = new JSZip();
     done.forEach(item => {
       zip.file(item.outName, item.resultBlob);
@@ -503,6 +533,12 @@
             item.statusEl.style.display = 'none';
             item.dlEl.style.visibility = 'visible';
             item.dlEl.href = url;
+            item.dlEl.onclick = (ev) => {
+              if (isNative()) {
+                ev.preventDefault();
+                shareNative([item]).catch((err) => console.warn(err));
+              }
+            };
             item.dlEl.download = item.outName;
             item.dlEl.textContent = 'Descargar';
           }, 'image/png');

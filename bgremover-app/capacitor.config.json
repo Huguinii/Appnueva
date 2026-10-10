@@ -1,0 +1,6 @@
+{
+  "appId": "com.hugo.sinfondo",
+  "appName": "Sin Fondo",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}
